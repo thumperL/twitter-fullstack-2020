@@ -360,6 +360,7 @@ io.on('connection', (socket) => {
       .then((message) => {
         // When newMessage come in, emit notify the room with sender, and his/her message
         io.to(payload.identifier).emit('newMessage', {
+          roomType : payload.identifier,
           sender   : socket.request.user,
           message  : message.dataValues.message,
           createdAt: `${moment(message.dataValues.createdAt).format('a h:mm')}`,
@@ -376,11 +377,15 @@ io.on('connection', (socket) => {
         isPublic  : false,
       })
       .then((message) => {
-        // When newMessage come in, emit notify the room with sender, and his/her message
+        User.findByPk(message.receiverId)
+        .then((user) => {
+                  // When newMessage come in, emit notify the room with sender, and his/her message
         socket.rooms.forEach((eaRoom) => {
           if (eaRoom !== socket.id) {
             io.to(eaRoom).emit('newMessage', {
+              roomType : payload.identifier,
               sender   : socket.request.user,
+              receiver : user,
               message  : message.dataValues.message,
               createdAt: `${moment(message.dataValues.createdAt).format('a h:mm')}`,
             });
@@ -389,6 +394,8 @@ io.on('connection', (socket) => {
             getAndNotifyAllUnread();
           }
         });
+        })
+
       })
       .catch((err) => console.error(err));
     }

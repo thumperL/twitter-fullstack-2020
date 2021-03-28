@@ -172,11 +172,30 @@ if (chatForm !== null) {
 socket.on('newMessage', (message) => {
   console.log('message', message);
   messages.innerHTML += generateChatRoomElement.message(message);
+
+  //更新私人訊息通知內容
+ if (String(message.roomType) === 'private') {
+  document.querySelectorAll('.sender-account').forEach((sender)=> {
+    let senderAccount = sender.innerText.slice(1, sender.innerText.length)
+    if ( message.sender.id === myUserId ) {
+      if (senderAccount === message.receiver.account ) {
+        sender.nextElementSibling.innerHTML = `<span class="posttime chat-createdAt">${message.createdAt}</span>`
+        sender.parentElement.nextElementSibling.innerHTML = `${message.message}`
+        } 
+    } else {
+      if (senderAccount === message.sender.account ) {
+         sender.nextElementSibling.innerHTML = `<span class="posttime chat-createdAt">${message.createdAt}</span>`
+         sender.parentElement.nextElementSibling.innerHTML = `${message.message}`
+        }
+      }
+  });
+ }
   messages.scrollIntoView(false);
 });
 
 // 使用者離線，更新在線者人數及顯示離線訊息
 socket.on('userLeft', (data) => {
+  console.log(data)
   if (String(data.roomType) !== 'private') {
     // 更新在線者人數和在線使用者列表
     displayChatRoomElement.userList(data)
@@ -188,7 +207,11 @@ socket.on('userLeft', (data) => {
 
 // 顯示未讀訊息
 socket.on('unreadMessageNotification', (count) => {
-  privateMessageCount.innerText = count.messages.length;
+  if (Number(count.messages.length) === 0) {
+    privateMessageCount.innerText = '';
+  } else {
+    privateMessageCount.innerText = count.messages.length;
+  }
 });
 
 // 顯示未讀通知
