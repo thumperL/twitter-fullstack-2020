@@ -78,13 +78,43 @@ const generateChatRoomElement = {
 };
 
 //渲染畫面
-const displayMessagesElement = () => {
-    
+const displayChatRoomElement = {
+  //顯示訊息畫面
+  chatRoomWindow : (userObj) => {
+  //新使用者上線通知
+  const userOnlineMessage = generateChatRoomElement.userOnlineMessage(userObj);
+ // 更新訊息列表
+  if (document.querySelectorAll('#chat-messages .message-item-self').length > 0) {
+    if (String(userObj.roomType) !== 'private') {
+      // 給已經在公開聊天室中的使用者，當有新使用者進入聊天室 => 顯示新使用者上線通知
+      return messages.innerHTML += `${generateChatRoomElement.userOnlineMessage(userObj)}`;
+    } 
+  } // 給剛進入聊天室的使用者 => 顯示歷史訊息 + 新使用者上線通知
+    else if (userObj.previousMessages !== undefined) {
+    let previousMessagesHtml = '';
+    userObj.previousMessages.forEach((message) => {
+      previousMessagesHtml += generateChatRoomElement.message(message);
+    })
+      if (String(userObj.roomType) !== 'private') {
+        return messages.innerHTML = `${previousMessagesHtml}${userOnlineMessage}`;
+      } else {
+        // 使用者進入私人聊天室 => 只顯示歷史訊息
+        return messages.innerHTML = `${previousMessagesHtml}`;
+      }
+    }
+  },
+  //公開聊天室使用者列表
+  userList: (userObj) => {
+    if (publicChatUserList !== null) {
+      publicChatUserList.innerHTML = '';
+      generateChatRoomElement.updateUserCount(userObj.usersInRoom);
+      return publicChatUserList.innerHTML += generateChatRoomElement.userList(userObj.usersInRoom);
+    }
+  },
 };
 
 
 let myUserId;
-
 // Temporary only, demonstrate the login connection workability
 socket.on('connect', () => {
   socket.emit('getAndNotifyAllUnread');
@@ -98,39 +128,11 @@ socket.on('me', (id) => {
 
 // 使用者已上線, 會同時推送上線的使用者，以及這個使用者加入的房間裡的用戶 array
 socket.on('userJoined', (userObj) => {
-  // 使用者上線提示
-  const userOnlineMessage = generateChatRoomElement.userOnlineMessage(userObj);
+  //聊天室訊息
+  displayChatRoomElement.chatRoomWindow(userObj);
+  //公開聊天室使用者列表
+  displayChatRoomElement.userList(userObj)
 
-  // 更新訊息列表
-  if (document.querySelectorAll('#chat-messages .message-item-self').length > 0) {
-    // 已經在聊天室裡面且有有過去訊息
-    if (String(userObj.roomType) !== 'private') {
-      messages.innerHTML += `${generateChatRoomElement.userOnlineMessage(userObj)}`;
-    }
-  } else if (userObj.previousMessages !== undefined) {
-    // 新的使用者
-    // 建立過去訊息列表
-    let previousMessagesHtml = '';
-    userObj.previousMessages.forEach((message) => {
-      previousMessagesHtml += generateChatRoomElement.message(message);
-    });
-    if (String(userObj.roomType) !== 'private') {
-      messages.innerHTML = `${previousMessagesHtml}${userOnlineMessage}`;
-    } else {
-      messages.innerHTML = `${previousMessagesHtml}`;
-    }
-  } else {
-    // 已經在聊天室裡面但沒有過去訊息
-    if (String(userObj.roomType) !== 'private') {
-      messages.innerHTML += `${generateChatRoomElement.userOnlineMessage(userObj)}`;
-    }
-  }
-  // 如果是在public chatroom
-  if (publicChatUserList !== null) {
-    publicChatUserList.innerHTML = '';
-    generateChatRoomElement.updateUserCount(userObj.usersInRoom);
-    publicChatUserList.innerHTML += generateChatRoomElement.userList(userObj.usersInRoom);
-  }
   window.scrollTo(0, document.body.scrollHeight);
   messages.scrollIntoView(false);
 });
@@ -142,11 +144,12 @@ if (window.location.pathname === '/chat/public') {
   socket.emit('join', 'private');
 }
 
+//儲存聊天訊息(將新的訊息傳送至後端)
 if (chatForm !== null) {
   chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     if (chatInput) {
-      // 在公開聊天室，發送訊息
+      // 公開聊天室發送的訊息
       socket.emit('sendMessage', {
         identifier: 'public',
         message   : chatInput.value,
@@ -154,7 +157,7 @@ if (chatForm !== null) {
       chatInput.value = '';
     }
     if (chatPMInput) {
-      // 在私人聊天室，發送訊息
+      // 私人聊天室發送的訊息
       socket.emit('sendMessage', {
         identifier: 'private',
         receiverId: chatPMInput.dataset.receiverId,
@@ -165,21 +168,19 @@ if (chatForm !== null) {
   });
 }
 
-// 傳送使用者聊天訊息
+// 即時傳送使用者的聊天訊息
 socket.on('newMessage', (message) => {
   console.log('message', message);
   messages.innerHTML += generateChatRoomElement.message(message);
   messages.scrollIntoView(false);
 });
 
-// 使用者離線，顯示離線訊息，更新在線者人數
+// 使用者離線，更新在線者人數及顯示離線訊息
 socket.on('userLeft', (data) => {
-  // 更新在線者人數和在線使用者列表
-  generateChatRoomElement.updateUserCount(data.usersInRoom);
-  publicChatUserList.innerHTML = generateChatRoomElement.userList(data.usersInRoom);
-
-  // 顯示誰離開的離線訊息
   if (String(data.roomType) !== 'private') {
+    // 更新在線者人數和在線使用者列表
+    displayChatRoomElement.userList(data)
+    // 顯示誰離開的離線訊息
     messages.innerHTML += (`${generateChatRoomElement.userOfflineMessage(data)}`);
   }
   messages.scrollIntoView(false);
